@@ -1,9 +1,12 @@
 # Part of the implementation of this container is based on the Amazon SageMaker Apache MXNet container.
 # https://github.com/aws/sagemaker-mxnet-container
 
-FROM ubuntu:16.04
+FROM nvidia/opencl:devel-ubuntu18.04
 
-LABEL maintainer="Amazon AI"
+LABEL maintainer="Sasaki Y"
+
+# tzdataのインストール時の停止を防ぐ
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Defining some variables used at build time to install Python3
 ARG PYTHON=python3
