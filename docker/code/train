@@ -1,2 +1,3 @@
-#!/bin/sh
-pysph test
+#!/usr/bin/env bash
+yes 0 | pysph run elliptical_drop --fname=/opt/ml/model/ellipticaldrop --opencl 
+
