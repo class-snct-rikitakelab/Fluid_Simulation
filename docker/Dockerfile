@@ -44,20 +44,7 @@ RUN ln -s $(which ${PYTHON}) /usr/local/bin/python
 
 WORKDIR /
 
-# Installing numpy, pandas, scikit-learn, scipy
-#RUN ${PIP} install --no-cache --upgrade \
-#         numpy==1.14.5 \
-#         pandas==0.24.1 \
-#         scikit-learn==0.20.3 \
-#         requests==2.21.0 \
-#         scipy==1.2.1
-        
-# RUN ${PIP} install --no-cache --upgrade \
-#         pyopencl numpy-stl pytest-mpl \
-#         https://github.com/pypr/pysph/zipball/master \
-#         https://github.com/pypr/compyle/zipball/master 
-
-RUN ${PIP} install --no-cache --upgrade pyopencl==2020.1
+RUN ${PIP} install --no-cache --upgrade pyopencl==2020.1 matplotlib
 
 RUN git clone https://github.com/pypr/pysph.git
 WORKDIR pysph
@@ -76,6 +63,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LC_ALL=C.UTF-8
 
 COPY code/* /
-ENTRYPOINT ["./train"]
 
+ENTRYPOINT ["./train"]
 #ENTRYPOINT ["python", "main.py"]
+#ENTRYPOINT ["python", "simulation.py"]
