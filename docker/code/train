@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
-yes 0 | pysph run elliptical_drop --fname=/opt/ml/model/ellipticaldrop --opencl 
-
+#clinfo
+yes 0 | python oscillating_rod.py  --opencl --scheme=adami
+#yes 0 | pysph run surface_tension/oscillating_rod  --opencl --fname="/opt/ml/model/experiment"

@@ -17,6 +17,12 @@ model_artifacts_path = "/opt/ml/model/"
 training_job_name_env = "TRAINING_JOB_NAME"
 training_job_arn_env = "TRAINING_JOB_ARN"
 
+def simulation():
+    from simulation import MultiPhase
+    app = MultiPhase(output_dir="/opt/ml/model/experiment")
+    app.run(["--opencl"])
+    app.post_process()
+
 def train():
     try:
         print("\nRunning training...")
@@ -55,13 +61,7 @@ def train():
         # Dummy net.
         net = None
         
-        
-        import subprocess
-        import sys
-#        res = subprocess.run("clinfo", stdout=subprocess.PIPE,shell=True)
-        res = subprocess.run(["pysph" ,"test"], stdout=subprocess.PIPE)
-        sys.stdout.buffer.write(res.stdout)
-        
+        simulation()
         
         # At the end of the training loop, we have to save model artifacts.
         save_model_artifacts(model_artifacts_path, net)
