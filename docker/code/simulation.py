@@ -320,31 +320,24 @@ class MultiPhase(Application):
     def create_particles(self):
         h0 = hdx * dx
 
+        additional_props = ['V', 
+                'scolor', 'cx', 'cy', 'cz',
+                'cx2', 'cy2', 'cz2', 'nx', 'ny', 'nz', 'ddelta',
+                'uhat', 'vhat', 'what', 'auhat', 'avhat', 'awhat',
+                'ax', 'ay', 'az', 'wij', 'vmag2', 'N', 'wij_sum',
+                'rho0', 'u0', 'v0', 'w0', 'x0', 'y0', 'z0',
+                'kappa', 'arho', 'wg', 'ug', 'vg',
+                'pi00', 'pi01', 'pi02', 'pi10', 'pi11', 'pi12',
+                'pi20', 'pi21', 'pi22'
+        ]
+        
         fluid_x, fluid_y = get_2d_block(
             dx=dx, length=Lx, height=Ly, center=np.array([0., 0.]))
         rho_fluid = np.ones_like(fluid_x) * rho0
         m_fluid = rho_fluid * dx * dx
         h_fluid = np.ones_like(fluid_x) * h0
         cs_fluid = np.ones_like(fluid_x) * c0
-        wall_x, wall_y = get_2d_block(dx=dx, length=Lx+6*dx, height=Ly+6*dx,
-                                      center=np.array([0., 0.]))
-        rho_wall = np.ones_like(wall_x) * rho0
-        m_wall = rho_wall * dx * dx
-        h_wall = np.ones_like(wall_x) * h0
-        cs_wall = np.ones_like(wall_x) * c0
-        additional_props = ['V', 
-                            'scolor', 'cx', 'cy', 'cz',
-                            'cx2', 'cy2', 'cz2', 'nx', 'ny', 'nz', 'ddelta',
-                            'uhat', 'vhat', 'what', 'auhat', 'avhat', 'awhat',
-                            'ax', 'ay', 'az', 'wij', 'vmag2', 'N', 'wij_sum',
-                            'rho0', 'u0', 'v0', 'w0', 'x0', 'y0', 'z0',
-                            'kappa', 'arho', 
-                            'wg', 'ug', 'vg',
-                            'pi00', 'pi01', 'pi02', 'pi10', 'pi11', 'pi12',
-                            'pi20', 'pi21', 'pi22'
-                           ]
-        consts = {'max_ddelta': np.zeros(1, dtype=float)}
-
+        
         u=np.zeros((len(fluid_x)))
         v=np.zeros((len(fluid_x)))
         for i in range(len(fluid_x)):
@@ -352,29 +345,39 @@ class MultiPhase(Application):
             f = np.exp(-R/r0)/r0
             u[i] = v0*fluid_x[i]*(1.0-(fluid_y[i]*fluid_y[i])/(r0*R))*f
             v[i] = -v0*fluid_y[i]*(1.0-(fluid_x[i]*fluid_x[i])/(r0*R))*f
-        
+            
+        color=np.zeros((len(fluid_x)))
+        for i in range(len(fluid_x)):
+            if (fluid_x[i]*fluid_x[i] + fluid_y[i]*fluid_y[i]) < 0.04:
+                color[i] = 1.0
+            else:
+                color[i] = 0.0
+                
+        consts = {'max_ddelta': np.zeros(1, dtype=float)}
         fluid = get_particle_array(
             name='fluid', x=fluid_x, y=fluid_y, h=h_fluid, m=m_fluid,
             rho=rho_fluid, cs=cs_fluid, additional_props=additional_props,
             constants=consts,u=u,v=v)
         
-        color=np.zeros((len(fluid.x)))
-        for i in range(len(fluid.x)):
-            if (fluid.x[i]*fluid.x[i] + fluid.y[i]*fluid.y[i]) < 0.04:
-                color[i] = 1.0
-            else:
-                color[i] = 0.0
         fluid.add_property("color",data=color)
-       
-        fluid.add_property("alpha",default=sigma)
         
+        fluid.add_property("alpha",default=sigma)
         fluid.add_property("nu",default=nu)
         
+        wall_x, wall_y = get_2d_block(dx=dx, length=Lx+6*dx, height=Ly+6*dx,
+                                      center=np.array([0., 0.]))
+        rho_wall = np.ones_like(wall_x) * rho0
+        m_wall = rho_wall * dx * dx
+        h_wall = np.ones_like(wall_x) * h0
+        cs_wall = np.ones_like(wall_x) * c0
+
         wall = get_particle_array(
             name='wall', x=wall_x, y=wall_y, h=h_wall, m=m_wall,
             rho=rho_wall, cs=cs_wall, additional_props=additional_props)
         wall.add_property("color",default=0)
+        
         remove_overlap_particles(wall, fluid, dx_solid=dx, dim=2)
+        
         fluid.add_output_arrays(['V', 'color', 'cx', 'cy', 'nx', 'ny',
                                  'ddelta', 'kappa', 'N', 'scolor', 'p'])
         wall.add_output_arrays(['V', 'color', 'cx', 'cy', 'nx', 'ny', 'ddelta',
