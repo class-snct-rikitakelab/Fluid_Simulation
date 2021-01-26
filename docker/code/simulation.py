@@ -18,28 +18,44 @@ from pysph.sph.integrator import PECIntegrator
 dim = 2
 Lx = 1.0
 Ly = 1.0
+drop_radious=0.2
 
-rho0 = 1.0
-nu = 0.05
+rho0d = 1.0
+rho0l = 0.001
+nud = 0.05
+nul = 0.0005
 sigma = 1.0
 
 r0 = 0.05
-v0 = 10.0
+v0 = 1.0
 
-c0 = 20.0
+c0 = 30.0
 
-nx = 120
+nx = 60
 dx = Lx / nx
 hdx = 1.5
 h0 = hdx * dx
 
 dt_cfl = 0.25*h0/(c0+v0)
-dt_visc = 0.125*rho0*h0*h0/nu
-dt_surf = 0.25*np.sqrt(rho0*h0*h0*h0/(2.0*np.pi*sigma))
+dt_visc = 0.125*rho0l*h0*h0/nul
+dt_surf = 0.25*np.sqrt(rho0l*h0*h0*h0/(2.0*np.pi*sigma))
 dt = 0.9*min(dt_cfl, dt_visc, dt_surf)
+
+print("CFL条件："+ str(dt_cfl))
+print("粘性の条件："+str(dt_visc))
+print("表面張力の条件："+ str(dt_surf))
+print("カーネル半径："+ str(h0))
 
 #アプリケーションの設定
 tf = 0.5
+pfreq =  tf/dt//200
+if pfreq == 0:
+    pfreq = 1
+
+print("終了時刻："+ str(tf))
+print("時間刻み："+ str(dt))
+print("出力周期："+ str(pfreq))
+
 
 class SummationDensity(Equation):
     def initialize(self, d_idx, d_V, d_rho):
@@ -51,15 +67,14 @@ class SummationDensity(Equation):
         d_rho[d_idx] += d_m[d_idx]*WIJ
 
 class StateEquation(Equation):
-    def __init__(self, dest, sources, p0, rho0, b=1.0):
+    def __init__(self, dest, sources, p0, b=1.0):
         self.b = b
         self.p0 = p0
-        self.rho0 = rho0
         super(StateEquation, self).__init__(dest, sources)
 
-    def loop(self, d_idx, d_p, d_rho):
-        d_p[d_idx] = self.p0 * (d_rho[d_idx]/self.rho0 - self.b)
-
+    def loop(self, d_idx, d_p, d_rho,d_rho0):
+        d_p[d_idx] = self.p0 * ((d_rho[d_idx]/d_rho0[d_idx])**7 - self.b)
+        
 class MomentumEquationPressureGradient(Equation):
     def __init__(self, dest, sources, pb, gx=0., gy=0., gz=0.,
                  tdamp=0.0):
@@ -140,6 +155,7 @@ class SolidWallPressureBCnoDensity(Equation):
 
     def post_loop(self, d_idx, d_wij, d_p, d_rho):
         if d_wij[d_idx] > 1e-14:
+#        if d_wij[d_idx] > 0.0:
             d_p[d_idx] /= d_wij[d_idx]
 
 
@@ -244,7 +260,8 @@ class AdamiColorGradient(Equation):
 
         # avoid sqrt computations on non-interface particles
         h2 = d_h[d_idx]*d_h[d_idx]
-        if mod_gradc2 > 1e-4/h2:
+        #if mod_gradc2 > 1e-4/h2:
+        if mod_gradc2 > 0.0:
             # this normal is reliable in the sense of [JM00]
             d_N[d_idx] = 1.0
 
@@ -288,7 +305,8 @@ class AdamiReproducingDivergence(Equation):
 
     def post_loop(self, d_idx, d_kappa, d_wij_sum):
         # normalize the curvature estimate
-        if d_wij_sum[d_idx] > 1e-12:
+        #if d_wij_sum[d_idx] > 1e-12:        
+        if d_wij_sum[d_idx] > 0.0:
             d_kappa[d_idx] /= d_wij_sum[d_idx]
         d_kappa[d_idx] *= -self.dim
 
@@ -312,6 +330,7 @@ class MomentumEquationViscosityAdami(Equation):
         d_av[d_idx] += factor*VIJ[1]
         d_aw[d_idx] += factor*VIJ[2]
 
+#squared radious 半径二乗
 def r(x, y):
     return x*x + y*y
 
@@ -325,7 +344,7 @@ class MultiPhase(Application):
                 'cx2', 'cy2', 'cz2', 'nx', 'ny', 'nz', 'ddelta',
                 'uhat', 'vhat', 'what', 'auhat', 'avhat', 'awhat',
                 'ax', 'ay', 'az', 'wij', 'vmag2', 'N', 'wij_sum',
-                'rho0', 'u0', 'v0', 'w0', 'x0', 'y0', 'z0',
+                'u0', 'v0', 'w0', 'x0', 'y0', 'z0',
                 'kappa', 'arho', 'wg', 'ug', 'vg',
                 'pi00', 'pi01', 'pi02', 'pi10', 'pi11', 'pi12',
                 'pi20', 'pi21', 'pi22'
@@ -333,13 +352,13 @@ class MultiPhase(Application):
         
         fluid_x, fluid_y = get_2d_block(
             dx=dx, length=Lx, height=Ly, center=np.array([0., 0.]))
-        rho_fluid = np.ones_like(fluid_x) * rho0
-        m_fluid = rho_fluid * dx * dx
+        
         h_fluid = np.ones_like(fluid_x) * h0
         cs_fluid = np.ones_like(fluid_x) * c0
         
         u=np.zeros((len(fluid_x)))
         v=np.zeros((len(fluid_x)))
+        
         for i in range(len(fluid_x)):
             R = sqrt(r(fluid_x[i], fluid_y[i]) + 0.0001*h_fluid[i]*h_fluid[i])
             f = np.exp(-R/r0)/r0
@@ -347,12 +366,22 @@ class MultiPhase(Application):
             v[i] = -v0*fluid_y[i]*(1.0-(fluid_x[i]*fluid_x[i])/(r0*R))*f
             
         color=np.zeros((len(fluid_x)))
+        rho_fluid = np.zeros((len(fluid_x)))       
+        nu_fluid = np.zeros((len(fluid_x)))
+        rho0_fluid = np.zeros((len(fluid_x)))
         for i in range(len(fluid_x)):
-            if (fluid_x[i]*fluid_x[i] + fluid_y[i]*fluid_y[i]) < 0.04:
+            if r(fluid_x[i],fluid_y[i]) < drop_radious**2 :
                 color[i] = 1.0
+                rho_fluid[i]=rho0d
+                rho0_fluid[i]=rho0d
+                nu_fluid[i]=nud
             else:
                 color[i] = 0.0
+                rho_fluid[i]=rho0l
+                rho0_fluid[i]=rho0l
+                nu_fluid[i]=nul
                 
+        m_fluid = rho_fluid * dx * dx
         consts = {'max_ddelta': np.zeros(1, dtype=float)}
         fluid = get_particle_array(
             name='fluid', x=fluid_x, y=fluid_y, h=h_fluid, m=m_fluid,
@@ -360,13 +389,14 @@ class MultiPhase(Application):
             constants=consts,u=u,v=v)
         
         fluid.add_property("color",data=color)
+        fluid.add_property("rho0",data=rho0_fluid)
+        fluid.add_property("nu",data=nu_fluid)
         
         fluid.add_property("alpha",default=sigma)
-        fluid.add_property("nu",default=nu)
         
         wall_x, wall_y = get_2d_block(dx=dx, length=Lx+6*dx, height=Ly+6*dx,
                                       center=np.array([0., 0.]))
-        rho_wall = np.ones_like(wall_x) * rho0
+        rho_wall = np.ones_like(wall_x) * rho0l
         m_wall = rho_wall * dx * dx
         h_wall = np.ones_like(wall_x) * h0
         cs_wall = np.ones_like(wall_x) * c0
@@ -379,7 +409,7 @@ class MultiPhase(Application):
         remove_overlap_particles(wall, fluid, dx_solid=dx, dim=2)
         
         fluid.add_output_arrays(['V', 'color', 'cx', 'cy', 'nx', 'ny',
-                                 'ddelta', 'kappa', 'N', 'scolor', 'p'])
+                                 'ddelta', 'kappa', 'N', 'scolor', 'p','rho0','nu','wij_sum'])
         wall.add_output_arrays(['V', 'color', 'cx', 'cy', 'nx', 'ny', 'ddelta',
                                 'kappa', 'N', 'scolor', 'p','u','v'])
 
@@ -391,7 +421,7 @@ class MultiPhase(Application):
         solver = Solver(
             kernel=kernel, dim=dim, integrator=integrator,
             dt=dt, tf=tf, adaptive_timestep=False,
-            output_at_times=[0., 0.08, 0.16, 0.26])
+            pfreq = pfreq)
         return solver
 
     def create_equations(self):
@@ -403,7 +433,10 @@ class MultiPhase(Application):
         result.append(Group(equations, real=True))
 
         equations = []
-        equations.append(StateEquation(dest='fluid', sources=None, rho0=rho0,p0=c0**2 * rho0, b=0))
+#         equations.append(StateEquation(dest='fluid', sources=None, rho0=rho0,p0=c0**2 * rho0, b=0))        
+        equations.append(StateEquation(dest='fluid', sources=None,p0=c0**2 * rho0d/7))
+        print(c0**2 * rho0d / 7)
+
         equations.append(SolidWallPressureBCnoDensity(dest='wall',sources=['fluid']))
         result.append(Group(equations, real=True))
 
@@ -420,7 +453,7 @@ class MultiPhase(Application):
               dest='fluid', sources=['fluid']+['wall'], pb=0.0))
         equations.append(MomentumEquationViscosityAdami(dest='fluid',sources=['fluid']))
         equations.append(CSFSurfaceTensionForceAdami(dest='fluid', sources=None))
-        equations.append(SolidWallNoSlipBC(dest='fluid', sources=['wall'],nu=nu))
+        equations.append(SolidWallNoSlipBC(dest='fluid', sources=['wall'],nu=nul))
         result.append(Group(equations))
         return result
 
