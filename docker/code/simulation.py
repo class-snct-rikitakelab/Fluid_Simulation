@@ -29,7 +29,7 @@ sigma = 1.0
 r0 = 0.05
 v0 = 1.0
 
-c0 = 30.0
+c0 = 80.0
 
 nx = 60
 dx = Lx / nx
@@ -456,80 +456,10 @@ class MultiPhase(Application):
         equations.append(SolidWallNoSlipBC(dest='fluid', sources=['wall'],nu=nul))
         result.append(Group(equations))
         return result
-
-    def post_process(self):
-        try:
-            import matplotlib
-            matplotlib.use('Agg')
-            import matplotlib.pyplot as plt
-        except ImportError:
-            print("Post processing requires Matplotlib")
-            return
-        from pysph.solver.utils import load
-        files = self.output_files
-        amat = []
-        t = []
-        centerx = []
-        centery = []
-        velx = []
-        vely = []
-
-        for f in files:
-            data = load(f)
-            pa = data['arrays']['fluid']
-            t.append(data['solver_data']['t'])
-            x = pa.x
-            y = pa.y
-            u = pa.u
-            v = pa.v
-            color = pa.color
-            length = len(color)
-            min_x = 0.0
-            max_x = 0.0
-            cx = 0
-            cy = 0
-            vx = 0
-            vy = 0
-            count = 0
-            for i in range(length):
-                if color[i] == 1:
-                    if x[i] < min_x:
-                        min_x = x[i]
-                    if x[i] > max_x:
-                        max_x = x[i]
-                    if x[i] > 0 and y[i] > 0:
-                        cx += x[i]
-                        cy += y[i]
-                        vx += u[i]
-                        vy += v[i]
-                        count += 1
-            amat.append(0.5*(max_x - min_x))
-            centerx.append(cx/count)
-            centery.append(cy/count)
-            velx.append(vx/count)
-            vely.append(vy/count)
-        fname = os.path.join(self.output_dir, 'results.npz')
-        np.savez(fname, t=t, semimajor=amat, centerx=centerx, centery=centery,
-                 velx=velx, vely=vely)
-        plt.plot(t, amat)
-        fig = os.path.join(self.output_dir, 'semimajorvst.png')
-        plt.savefig(fig)
-        plt.close()
-        plt.plot(t, centerx, label='x position')
-        plt.plot(t, centery, label='y position')
-        plt.legend()
-        fig1 = os.path.join(self.output_dir, 'centerofmassposvst')
-        plt.savefig(fig1)
-        plt.close()
-        plt.plot(t, velx, label='x velocity')
-        plt.plot(t, vely, label='y velocity')
-        plt.legend()
-        fig2 = os.path.join(self.output_dir, 'centerofmassvelvst')
-        plt.savefig(fig2)
-        plt.close()
         
 if __name__ == '__main__':
-    app = MultiPhase(output_dir="/opt/ml/model/experiment")
-    app.run(["--opencl"])
-    app.post_process()
-
+    try:
+        app = MultiPhase(output_dir="/opt/ml/model/experiment")
+        app.run(["--opencl"])
+    except Exception as e:
+        print(e)
